@@ -2,15 +2,16 @@ package main
 
 import (
 	"bufio"
-
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"sync"
 )
 
+var wg sync.WaitGroup
+
 func ReadHandle(conn net.Conn) {
-	//fmt.Println("ReadHandle")
 	reader := bufio.NewReader(conn)
 	for {
 		data, err := reader.ReadString('\n')
@@ -23,7 +24,6 @@ func ReadHandle(conn net.Conn) {
 }
 
 func WriteHandle(conn net.Conn) {
-	//fmt.Println("WriteHandle")
 	writer := bufio.NewReader(os.Stdin)
 	for {
 		input, err := writer.ReadString('\n')
@@ -31,8 +31,12 @@ func WriteHandle(conn net.Conn) {
 			CheckError(err)
 		}
 		b := []byte(input)
-		conn.Write(b)
+		_, err = conn.Write(b)
+		if err != nil {
+			wg.Done()
+		}
 	}
+
 	conn.Close()
 }
 
@@ -44,9 +48,10 @@ func TcpServer(address *net.TCPAddr) {
 
 	conn, err := Listener.Accept()
 	CheckError(err)
-
+	wg.Add(1)
 	go ReadHandle(conn)
 	go WriteHandle(conn)
+	wg.Wait()
 }
 
 func TcpClient(address *net.TCPAddr) {
@@ -55,8 +60,10 @@ func TcpClient(address *net.TCPAddr) {
 		return
 	}
 
+	wg.Add(1)
+	go ReadHandle(conn)
 	go WriteHandle(conn)
-
+	wg.Wait()
 }
 
 func main() {
