@@ -2,20 +2,23 @@ package main
 
 import (
 	"bufio"
-	"bytes"
+	//"bytes"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"sync"
+	"time"
 )
 
 var wg sync.WaitGroup
 
 type Client struct {
 	netType string
+	timeout time.Duration
 	host    string
 	port    string
+	address string
 }
 
 type Conn struct {
@@ -23,7 +26,6 @@ type Conn struct {
 }
 
 func ReadHandle(conn net.Conn) {
-	fmt.Println("read")
 	reader := bufio.NewReader(conn)
 	for {
 		data, err := reader.ReadString('\n')
@@ -36,7 +38,6 @@ func ReadHandle(conn net.Conn) {
 }
 
 func WriteHandle(conn net.Conn) {
-	fmt.Println("write")
 	writer := bufio.NewReader(os.Stdin)
 	for {
 		input, err := writer.ReadString('\n')
@@ -49,43 +50,16 @@ func WriteHandle(conn net.Conn) {
 			wg.Done()
 		}
 	}
-
 	conn.Close()
 }
 
-func (client Client) GetTcpAddr() *net.TCPAddr {
-	var buffer bytes.Buffer
-
-	buffer.WriteString(client.host)
-	buffer.WriteString(":")
-	buffer.WriteString(client.port)
-
-	addr := buffer.String()
-
-	result, err := net.ResolveTCPAddr("tcp", addr)
-	CheckError(err)
-
-	return result
+func (c Client) GetAddr() string {
+	return c.host + ":" + c.port
 }
 
-func (client Client) GetUdpAddr() *net.UDPAddr {
-	var buffer bytes.Buffer
-
-	buffer.WriteString(client.host)
-	buffer.WriteString(":")
-	buffer.WriteString(client.port)
-
-	addr := buffer.String()
-
-	result, err := net.ResolveUDPAddr("udp", addr)
-	CheckError(err)
-
-	return result
-}
-
-func (client Client) TcpClient() {
-	tcpAddr := client.GetTcpAddr()
-	conn, err := net.DialTCP(client.netType, nil, tcpAddr)
+func (c Client) Client() {
+	address := c.GetAddr()
+	conn, err := net.Dial(c.netType, address)
 	CheckError(err)
 
 	wg.Add(1)
@@ -94,9 +68,10 @@ func (client Client) TcpClient() {
 	wg.Wait()
 }
 
-func (client Client) UdpClient() {
-	udpAddr := client.GetUdpAddr()
-	conn, err := net.DialUDP(client.netType, nil, udpAddr)
+func (c Client) TimeOutClient() {
+	fmt.Println("timeoutclient", c.timeout)
+	address := c.GetAddr()
+	conn, err := net.DialTimeout(c.netType, address, c.timeout)
 	CheckError(err)
 
 	wg.Add(1)
@@ -111,10 +86,14 @@ func main() {
 	client := Client{host: args.host, port: args.port}
 	if args.netType {
 		client.netType = "udp"
-		client.UdpClient()
 	} else {
 		client.netType = "tcp"
-		client.TcpClient()
+	}
+	if args.timeout != 0 {
+		client.timeout = time.Duration(args.timeout) * time.Second
+		client.TimeOutClient()
+	} else {
+		client.Client()
 	}
 
 }
