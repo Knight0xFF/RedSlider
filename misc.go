@@ -28,3 +28,18 @@ func GetTcpAddr(host, port string) *net.TCPAddr {
 
 	return result
 }
+
+func GetUdpAddr(host, port string) *net.UDPAddr {
+	var buffer bytes.Buffer
+
+	buffer.WriteString(host)
+	buffer.WriteString(":")
+	buffer.WriteString(port)
+
+	addr := buffer.String()
+
+	result, err := net.ResolveUDPAddr("udp", addr)
+	CheckError(err)
+
+	return result
+}

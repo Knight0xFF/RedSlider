@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -11,7 +12,18 @@ import (
 
 var wg sync.WaitGroup
 
+type Client struct {
+	netType string
+	host    string
+	port    string
+}
+
+type Conn struct {
+	conn net.Conn
+}
+
 func ReadHandle(conn net.Conn) {
+	fmt.Println("read")
 	reader := bufio.NewReader(conn)
 	for {
 		data, err := reader.ReadString('\n')
@@ -24,6 +36,7 @@ func ReadHandle(conn net.Conn) {
 }
 
 func WriteHandle(conn net.Conn) {
+	fmt.Println("write")
 	writer := bufio.NewReader(os.Stdin)
 	for {
 		input, err := writer.ReadString('\n')
@@ -40,25 +53,51 @@ func WriteHandle(conn net.Conn) {
 	conn.Close()
 }
 
-func TcpServer(address *net.TCPAddr) {
-	Listener, err := net.ListenTCP("tcp", address)
+func (client Client) GetTcpAddr() *net.TCPAddr {
+	var buffer bytes.Buffer
+
+	buffer.WriteString(client.host)
+	buffer.WriteString(":")
+	buffer.WriteString(client.port)
+
+	addr := buffer.String()
+
+	result, err := net.ResolveTCPAddr("tcp", addr)
 	CheckError(err)
 
-	defer Listener.Close()
+	return result
+}
 
-	conn, err := Listener.Accept()
+func (client Client) GetUdpAddr() *net.UDPAddr {
+	var buffer bytes.Buffer
+
+	buffer.WriteString(client.host)
+	buffer.WriteString(":")
+	buffer.WriteString(client.port)
+
+	addr := buffer.String()
+
+	result, err := net.ResolveUDPAddr("udp", addr)
 	CheckError(err)
+
+	return result
+}
+
+func (client Client) TcpClient() {
+	tcpAddr := client.GetTcpAddr()
+	conn, err := net.DialTCP(client.netType, nil, tcpAddr)
+	CheckError(err)
+
 	wg.Add(1)
 	go ReadHandle(conn)
 	go WriteHandle(conn)
 	wg.Wait()
 }
 
-func TcpClient(address *net.TCPAddr) {
-	conn, err := net.DialTCP("tcp", nil, address)
-	if err != nil {
-		return
-	}
+func (client Client) UdpClient() {
+	udpAddr := client.GetUdpAddr()
+	conn, err := net.DialUDP(client.netType, nil, udpAddr)
+	CheckError(err)
 
 	wg.Add(1)
 	go ReadHandle(conn)
@@ -68,11 +107,14 @@ func TcpClient(address *net.TCPAddr) {
 
 func main() {
 	args := GetArgs()
-	tcpAddr := GetTcpAddr(args.host, args.port)
-	if args.listen {
-		TcpServer(tcpAddr)
+
+	client := Client{host: args.host, port: args.port}
+	if args.netType {
+		client.netType = "udp"
+		client.UdpClient()
 	} else {
-		TcpClient(tcpAddr)
+		client.netType = "tcp"
+		client.TcpClient()
 	}
 
 }
