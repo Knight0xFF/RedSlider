@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -53,47 +54,65 @@ func WriteHandle(conn net.Conn) {
 	conn.Close()
 }
 
-func (c Client) GetAddr() string {
-	return c.host + ":" + c.port
-}
-
-func (c Client) Client() {
-	address := c.GetAddr()
-	conn, err := net.Dial(c.netType, address)
-	CheckError(err)
-
-	wg.Add(1)
-	go ReadHandle(conn)
-	go WriteHandle(conn)
-	wg.Wait()
-}
-
-func (c Client) TimeOutClient() {
-	fmt.Println("timeoutclient", c.timeout)
-	address := c.GetAddr()
-	conn, err := net.DialTimeout(c.netType, address, c.timeout)
-	CheckError(err)
-
-	wg.Add(1)
-	go ReadHandle(conn)
-	go WriteHandle(conn)
-	wg.Wait()
-}
-
-func main() {
-	args := GetArgs()
-
-	client := Client{host: args.host, port: args.port}
-	if args.netType {
+func NewClient(host string, port string, netType bool) *Client {
+	address := host + ":" + port
+	client := Client{host: host, port: port, address: address}
+	if netType {
 		client.netType = "udp"
 	} else {
 		client.netType = "tcp"
 	}
-	if args.timeout != 0 {
-		client.timeout = time.Duration(args.timeout) * time.Second
-		client.TimeOutClient()
-	} else {
+	return &client
+}
+
+func (c *Client) Client() {
+	conn, err := net.Dial(c.netType, c.address)
+	CheckError(err)
+
+	wg.Add(1)
+	go ReadHandle(conn)
+	go WriteHandle(conn)
+	wg.Wait()
+}
+
+func (c *Client) TimeOutClient() {
+	conn, err := net.DialTimeout(c.netType, c.address, c.timeout)
+	CheckError(err)
+
+	wg.Add(1)
+	go ReadHandle(conn)
+	go WriteHandle(conn)
+	wg.Wait()
+}
+
+type Scanner struct {
+	host    string
+	netType string
+	loPort  int
+	hiPort  int
+}
+
+func NewScanner(host, netType, loPort, hiPort string) *Scanner {
+	scanner := Scanner{host: host, netType: netType}
+	scanner.loPort, _ = strconv.Atoi(loPort)
+	scanner.hiPort, _ = strconv.Atoi(hiPort)
+	return &scanner
+}
+
+func (s *Scanner) Scan() {
+	for port := int(s.loPort); port < int(s.hiPort); port++ {
+		port = strconv.Itoa(port)
+		client := NewClient(s.host, port, s.netType)
 		client.Client()
+	}
+}
+
+func main() {
+	args := GetArgs()
+	client := NewClient(args.host, args.port, args.netType)
+	if len(args.port) == 2 {
+		client.port = args.port[0]
+		client.hport = args.port[1]
 	}
 
 }
