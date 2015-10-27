@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"strings"
 )
 
 type Option struct {
@@ -9,7 +10,7 @@ type Option struct {
 	netType bool
 	timeout int
 	host    string
-	port    string
+	port    []string
 }
 
 func GetArgs() (args Option) {
@@ -20,6 +21,6 @@ func GetArgs() (args Option) {
 
 	flag.Parse()
 	args.host = flag.Arg(0)
-	args.port = flag.Arg(1)
+	args.port = strings.Split(flag.Arg(1), "-")
 	return
 }
